@@ -1,18 +1,384 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Escape If You Can</title>
-</head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Escape If You Can</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --blood:    #c0392b;
+      --ember:    #e67e22;
+      --fog:      rgba(20,20,30,0.85);
+      --panel:    rgba(10,10,18,0.92);
+      --accent:   #00ffe7;
+      --warn:     #ff4444;
+      --text:     #e8e8f0;
+      --dim:      #7a7a9a;
+      --font-hud: 'Courier New', monospace;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: var(--font-hud);
+      color: var(--text);
+      user-select: none;
+    }
+
+    /* ── Game Canvas ── */
+    #gameCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 0;
+    }
+
+    /* ── HUD Overlay ── */
+    #hud {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Health Bar */
+    #healthBar {
+      position: absolute;
+      top: 20px; left: 20px;
+      width: 220px;
+    }
+    #healthLabel {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 5px;
+    }
+    #healthTrack {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #healthFill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #c0392b, #e74c3c);
+      transition: width 0.3s ease, background 0.3s;
+      border-radius: 2px;
+    }
+
+    /* Timer */
+    #timerBox {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+    #timerLabel {
+      font-size: 10px;
+      letter-spacing: 4px;
+      color: var(--dim);
+    }
+    #timer {
+      font-size: 38px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(0,255,231,0.5);
+      font-variant-numeric: tabular-nums;
+    }
+    #timer.danger {
+      color: var(--warn);
+      text-shadow: 0 0 20px rgba(255,68,68,0.6);
+      animation: pulse 0.5s infinite alternate;
+    }
+
+    /* Stealth Meter */
+    #stealthBox {
+      position: absolute;
+      top: 20px; right: 20px;
+      width: 180px;
+      text-align: right;
+    }
+    #stealthLabel {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 5px;
+    }
+    #stealthTrack {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #stealthFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00ffe7, #0080ff);
+      transition: width 0.2s ease;
+      border-radius: 2px;
+    }
+
+    /* Level Info */
+    #levelInfo {
+      position: absolute;
+      bottom: 30px; left: 20px;
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--dim);
+    }
+    #levelName {
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px; height: 20px;
+    }
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.6);
+    }
+    #crosshair::before {
+      width: 2px; height: 100%;
+      left: 50%; transform: translateX(-50%);
+    }
+    #crosshair::after {
+      height: 2px; width: 100%;
+      top: 50%; transform: translateY(-50%);
+    }
+
+    /* Alert Message */
+    #alertMsg {
+      position: absolute;
+      top: 80px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--warn);
+      text-shadow: 0 0 15px rgba(255,68,68,0.8);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    /* Controls hint */
+    #controlsHint {
+      position: absolute;
+      bottom: 30px; right: 20px;
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--dim);
+      line-height: 1.8;
+      text-align: right;
+    }
+
+    /* ── Minimap ── */
+    #minimap {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 140px;
+      height: 140px;
+      border: 1px solid rgba(0,255,231,0.35);
+      background: rgba(0,0,0,0.6);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #minimapCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #minimapLabel {
+      position: absolute;
+      top: 4px; left: 0; right: 0;
+      text-align: center;
+      font-size: 8px;
+      letter-spacing: 3px;
+      color: rgba(0,255,231,0.5);
+      pointer-events: none;
+    }
+
+    /* ── Modal Screens ── */
+    .screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Win / Lose screens (rendered by gameManager) ── */
+    #winScreen, #loseScreen {
+      display: none;
+    }
+
+    /* ── Damage Flash ── */
+    #damageFlash {
+      position: fixed;
+      inset: 0;
+      background: rgba(192,57,43,0);
+      pointer-events: none;
+      z-index: 50;
+      transition: background 0.1s;
+    }
+
+    /* ── Loading Bar ── */
+    #loadingScreen {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    #loadingTitle {
+      font-size: 28px;
+      letter-spacing: 8px;
+      color: var(--accent);
+      text-shadow: 0 0 30px rgba(0,255,231,0.4);
+      margin-bottom: 30px;
+    }
+    #loadingBar {
+      width: 300px;
+      height: 3px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #loadingFill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px var(--accent);
+    }
+    #loadingText {
+      margin-top: 15px;
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--dim);
+    }
+
+    @keyframes pulse {
+      from { opacity: 1; }
+      to   { opacity: 0.4; }
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-6px); }
+      40%     { transform: translateX(6px); }
+      60%     { transform: translateX(-4px); }
+      80%     { transform: translateX(4px); }
+    }
+    .shake { animation: shake 0.4s ease; }
+  </style>
+</head>
 <body>
 
-<h1>Escape If You Can</h1>
+  <!-- THREE.js Render Target -->
+  <canvas id="gameCanvas"></canvas>
 
-<input id="attendance" placeholder="Enter Attendance %" />
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div id="loadingTitle">ESCAPE IF YOU CAN</div>
+    <div id="loadingBar"><div id="loadingFill"></div></div>
+    <div id="loadingText">INITIALIZING ENGINE...</div>
+  </div>
 
-<button onclick="startGame()">Start Game</button>
+  <!-- HUD (shown during gameplay) -->
+  <div id="hud">
+    <!-- Health -->
+    <div id="healthBar">
+      <div id="healthLabel">■ HEALTH</div>
+      <div id="healthTrack"><div id="healthFill"></div></div>
+    </div>
 
-<script src="./src/main.js"></script>
+    <!-- Timer -->
+    <div id="timerBox">
+      <div id="timerLabel">TIME REMAINING</div>
+      <div id="timer">05:00</div>
+    </div>
 
+    <!-- Stealth -->
+    <div id="stealthBox">
+      <div id="stealthLabel">DETECTION ■</div>
+      <div id="stealthTrack"><div id="stealthFill"></div></div>
+    </div>
+
+    <!-- Alert Message -->
+    <div id="alertMsg"></div>
+
+    <!-- Crosshair -->
+    <div id="crosshair"></div>
+
+    <!-- Level Info -->
+    <div id="levelInfo">
+      <div id="levelName">DEPARTMENT SECTOR</div>
+      <div id="attendanceDisplay">ATTENDANCE: --</div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controlsHint">
+      WASD · MOVE<br>
+      SHIFT · SPRINT<br>
+      SPACE · JUMP<br>
+      C · CROUCH<br>
+      E · INTERACT<br>
+      ESC · PAUSE
+    </div>
+
+    <!-- Minimap -->
+    <div id="minimap">
+      <canvas id="minimapCanvas" width="140" height="140"></canvas>
+      <div id="minimapLabel">MAP</div>
+    </div>
+  </div>
+
+  <!-- Damage Flash Overlay -->
+  <div id="damageFlash"></div>
+
+  <!-- Win / Lose screens (injected by gameManager.js) -->
+  <div id="winScreen" class="screen"></div>
+  <div id="loseScreen" class="screen"></div>
+
+  <!-- Start Screen Mount Point (injected by startScreen.js) -->
+  <div id="startScreenMount"></div>
+
+  <!-- Three.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Game Entry Point -->
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>
