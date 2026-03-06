@@ -1,384 +1,413 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Escape If You Can</title>
   <style>
-    /* ── Reset & Base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --blood:    #c0392b;
-      --ember:    #e67e22;
-      --fog:      rgba(20,20,30,0.85);
-      --panel:    rgba(10,10,18,0.92);
-      --accent:   #00ffe7;
-      --warn:     #ff4444;
-      --text:     #e8e8f0;
-      --dim:      #7a7a9a;
-      --font-hud: 'Courier New', monospace;
+      --accent: #00ffe7; --warn: #ff4444; --gold: #f0c040;
+      --text: #e8e8f0; --dim: #7a7a9a; --panel: rgba(6,8,18,0.88);
+      --font: 'Courier New', monospace;
     }
+    html, body { width:100%; height:100%; overflow:hidden; background:#000; font-family:var(--font); color:var(--text); user-select:none; }
+    #gameCanvas { display:block; width:100vw; height:100vh; position:fixed; top:0; left:0; z-index:0; }
 
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #000;
-      font-family: var(--font-hud);
-      color: var(--text);
-      user-select: none;
-    }
+    #hud { display:none; position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
 
-    /* ── Game Canvas ── */
-    #gameCanvas {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-      position: fixed;
-      top: 0; left: 0;
-      z-index: 0;
-    }
-
-    /* ── HUD Overlay ── */
-    #hud {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    /* Health Bar */
-    #healthBar {
-      position: absolute;
-      top: 20px; left: 20px;
-      width: 220px;
-    }
-    #healthLabel {
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 5px;
-    }
-    #healthTrack {
-      width: 100%;
-      height: 8px;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    #healthFill {
-      height: 100%;
-      width: 100%;
-      background: linear-gradient(90deg, #c0392b, #e74c3c);
-      transition: width 0.3s ease, background 0.3s;
-      border-radius: 2px;
-    }
+    /* Health / Stamina */
+    #healthBar { position:absolute; top:18px; left:18px; width:200px; }
+    #staminaBar { position:absolute; top:52px; left:18px; width:200px; }
+    .hud-label { font-size:9px; letter-spacing:3px; color:var(--dim); margin-bottom:5px; text-transform:uppercase; }
+    .hud-track { width:100%; height:7px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:2px; overflow:hidden; }
+    #healthFill  { height:100%; width:100%; background:linear-gradient(90deg,#c0392b,#e74c3c); transition:width .3s,background .3s; border-radius:2px; }
+    #staminaFill { height:100%; width:100%; background:linear-gradient(90deg,#f39c12,#f1c40f); transition:width .15s; border-radius:2px; }
 
     /* Timer */
-    #timerBox {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
+    #timerBox { position:absolute; top:16px; left:50%; transform:translateX(-50%); text-align:center; }
+    .timer-label { font-size:9px; letter-spacing:4px; color:var(--dim); }
+    #timer { font-size:36px; font-weight:700; color:var(--accent); text-shadow:0 0 20px rgba(0,255,231,.5); font-variant-numeric:tabular-nums; letter-spacing:2px; }
+    #timer.danger { color:var(--warn); text-shadow:0 0 20px rgba(255,68,68,.6); animation:pulse .5s infinite alternate; }
+
+    /* Detection */
+    #detectionBox { position:absolute; top:18px; right:18px; width:170px; text-align:right; }
+    #detectionFill { height:100%; width:0%; background:linear-gradient(90deg,#00ffe7,#0080ff); transition:width .2s; border-radius:2px; }
+
+    /* OBJECTIVES PANEL */
+    #objectivesPanel {
+      position:absolute; top:90px; left:18px; width:240px;
+      background:var(--panel); border:1px solid rgba(0,255,231,0.18);
+      border-radius:3px; padding:11px 13px; font-size:11px;
     }
-    #timerLabel {
-      font-size: 10px;
-      letter-spacing: 4px;
-      color: var(--dim);
-    }
-    #timer {
-      font-size: 38px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      color: var(--accent);
-      text-shadow: 0 0 20px rgba(0,255,231,0.5);
-      font-variant-numeric: tabular-nums;
-    }
-    #timer.danger {
-      color: var(--warn);
-      text-shadow: 0 0 20px rgba(255,68,68,0.6);
-      animation: pulse 0.5s infinite alternate;
+    #objTitle { font-size:8px; letter-spacing:4px; color:var(--accent); margin-bottom:9px; border-bottom:1px solid rgba(0,255,231,0.12); padding-bottom:5px; }
+    .obj-item { display:flex; align-items:flex-start; gap:8px; margin-bottom:6px; color:var(--dim); line-height:1.4; transition:color .3s; }
+    .obj-item.done   { color:rgba(0,255,68,0.65); text-decoration:line-through; }
+    .obj-item.active { color:var(--text); }
+    .obj-dot { flex-shrink:0; width:6px; height:6px; border-radius:50%; border:1px solid currentColor; margin-top:3px; }
+    .obj-item.done   .obj-dot { background:#00ff44; border-color:#00ff44; }
+    .obj-item.active .obj-dot { background:var(--accent); border-color:var(--accent); animation:pulse .9s infinite alternate; }
+
+    /* Interact prompt */
+    #interactPrompt {
+      position:absolute; bottom:130px; left:50%; transform:translateX(-50%);
+      background:rgba(0,0,0,0.75); border:1px solid rgba(0,255,231,0.45);
+      padding:7px 20px; font-size:12px; letter-spacing:3px; color:var(--accent);
+      opacity:0; transition:opacity .25s; pointer-events:none; border-radius:2px; white-space:nowrap;
     }
 
-    /* Stealth Meter */
-    #stealthBox {
-      position: absolute;
-      top: 20px; right: 20px;
-      width: 180px;
-      text-align: right;
-    }
-    #stealthLabel {
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: 5px;
-    }
-    #stealthTrack {
-      width: 100%;
-      height: 8px;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    #stealthFill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #00ffe7, #0080ff);
-      transition: width 0.2s ease;
-      border-radius: 2px;
-    }
-
-    /* Level Info */
-    #levelInfo {
-      position: absolute;
-      bottom: 30px; left: 20px;
-      font-size: 12px;
-      letter-spacing: 2px;
-      color: var(--dim);
-    }
-    #levelName {
-      font-size: 16px;
-      color: var(--text);
-      margin-bottom: 4px;
+    /* Alert */
+    #alertMsg {
+      position:absolute; top:75px; left:50%; transform:translateX(-50%);
+      font-size:13px; letter-spacing:3px; text-transform:uppercase;
+      color:var(--warn); text-shadow:0 0 15px rgba(255,68,68,.8);
+      opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap;
     }
 
     /* Crosshair */
-    #crosshair {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 20px; height: 20px;
-    }
-    #crosshair::before,
-    #crosshair::after {
-      content: '';
-      position: absolute;
-      background: rgba(255,255,255,0.6);
-    }
-    #crosshair::before {
-      width: 2px; height: 100%;
-      left: 50%; transform: translateX(-50%);
-    }
-    #crosshair::after {
-      height: 2px; width: 100%;
-      top: 50%; transform: translateY(-50%);
-    }
+    #crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:18px; height:18px; }
+    #crosshair::before,#crosshair::after { content:''; position:absolute; background:rgba(255,255,255,0.5); }
+    #crosshair::before { width:2px; height:100%; left:50%; transform:translateX(-50%); }
+    #crosshair::after  { height:2px; width:100%; top:50%; transform:translateY(-50%); }
 
-    /* Alert Message */
-    #alertMsg {
-      position: absolute;
-      top: 80px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 14px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--warn);
-      text-shadow: 0 0 15px rgba(255,68,68,0.8);
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
-    }
+    #levelInfo { position:absolute; bottom:28px; left:18px; font-size:11px; letter-spacing:2px; color:var(--dim); }
+    #levelName { font-size:15px; color:var(--text); margin-bottom:3px; }
+    #controlsHint { position:absolute; bottom:28px; right:18px; font-size:10px; letter-spacing:1px; color:rgba(255,255,255,0.22); line-height:1.9; text-align:right; }
 
-    /* Controls hint */
-    #controlsHint {
-      position: absolute;
-      bottom: 30px; right: 20px;
-      font-size: 10px;
-      letter-spacing: 1px;
-      color: var(--dim);
-      line-height: 1.8;
-      text-align: right;
-    }
+    /* Sound toggle */
+    #soundToggle { position:absolute; top:18px; right:206px; font-size:9px; letter-spacing:2px; color:var(--dim); cursor:pointer; pointer-events:all; padding:4px 8px; border:1px solid rgba(255,255,255,0.1); border-radius:2px; transition:all .2s; }
+    #soundToggle:hover { color:var(--accent); border-color:rgba(0,255,231,0.4); }
 
-    /* ── Minimap ── */
-    #minimap {
-      position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 140px;
-      height: 140px;
-      border: 1px solid rgba(0,255,231,0.35);
-      background: rgba(0,0,0,0.6);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    #minimapCanvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    #minimapLabel {
-      position: absolute;
-      top: 4px; left: 0; right: 0;
-      text-align: center;
-      font-size: 8px;
-      letter-spacing: 3px;
-      color: rgba(0,255,231,0.5);
-      pointer-events: none;
-    }
+    /* Minimap */
+    #minimap { position:absolute; bottom:28px; left:50%; transform:translateX(-50%); width:130px; height:130px; border:1px solid rgba(0,255,231,0.28); background:rgba(0,0,0,0.65); border-radius:3px; overflow:hidden; }
+    #minimapCanvas { width:100%; height:100%; display:block; }
+    #minimapLabel  { position:absolute; top:3px; left:0; right:0; text-align:center; font-size:7px; letter-spacing:3px; color:rgba(0,255,231,0.38); pointer-events:none; }
 
-    /* ── Modal Screens ── */
-    .screen {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    /* Damage / vignette */
+    #damageFlash { position:fixed; inset:0; background:rgba(192,57,43,0); pointer-events:none; z-index:50; transition:background .1s; }
+    #vignette    { position:fixed; inset:0; pointer-events:none; z-index:5; background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.65) 100%); }
 
-    /* ── Win / Lose screens (rendered by gameManager) ── */
-    #winScreen, #loseScreen {
-      display: none;
-    }
+    .screen { position:fixed; top:0; left:0; width:100%; height:100%; z-index:100; display:flex; align-items:center; justify-content:center; }
+    #winScreen,#loseScreen { display:none; }
 
-    /* ── Damage Flash ── */
-    #damageFlash {
-      position: fixed;
-      inset: 0;
-      background: rgba(192,57,43,0);
-      pointer-events: none;
-      z-index: 50;
-      transition: background 0.1s;
-    }
+    #loadingScreen { position:fixed; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; }
+    #loadingTitle    { font-size:26px; letter-spacing:8px; color:var(--accent); text-shadow:0 0 30px rgba(0,255,231,.4); margin-bottom:6px; }
+    #loadingSubtitle { font-size:9px; letter-spacing:6px; color:var(--dim); margin-bottom:32px; }
+    #loadingBar  { width:280px; height:2px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; }
+    #loadingFill { height:100%; width:0%; background:var(--accent); transition:width .3s ease; box-shadow:0 0 8px var(--accent); }
+    #loadingText { margin-top:13px; font-size:10px; letter-spacing:3px; color:var(--dim); }
 
-    /* ── Loading Bar ── */
-    #loadingScreen {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-    }
-    #loadingTitle {
-      font-size: 28px;
-      letter-spacing: 8px;
-      color: var(--accent);
-      text-shadow: 0 0 30px rgba(0,255,231,0.4);
-      margin-bottom: 30px;
-    }
-    #loadingBar {
-      width: 300px;
-      height: 3px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    #loadingFill {
-      height: 100%;
-      width: 0%;
-      background: var(--accent);
-      transition: width 0.3s ease;
-      box-shadow: 0 0 10px var(--accent);
-    }
-    #loadingText {
-      margin-top: 15px;
-      font-size: 11px;
-      letter-spacing: 3px;
-      color: var(--dim);
-    }
-
-    @keyframes pulse {
-      from { opacity: 1; }
-      to   { opacity: 0.4; }
-    }
-    @keyframes shake {
-      0%,100% { transform: translateX(0); }
-      20%     { transform: translateX(-6px); }
-      40%     { transform: translateX(6px); }
-      60%     { transform: translateX(-4px); }
-      80%     { transform: translateX(4px); }
-    }
-    .shake { animation: shake 0.4s ease; }
+    @keyframes pulse { from{opacity:1} to{opacity:.35} }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+    .shake { animation:shake .35s ease; }
+    #startScreenMount { position:fixed; inset:0; z-index:100; }
   </style>
 </head>
 <body>
-
-  <!-- THREE.js Render Target -->
   <canvas id="gameCanvas"></canvas>
+  <div id="vignette"></div>
 
-  <!-- Loading Screen -->
   <div id="loadingScreen">
     <div id="loadingTitle">ESCAPE IF YOU CAN</div>
+    <div id="loadingSubtitle">A STUDENT SURVIVAL EXPERIENCE</div>
     <div id="loadingBar"><div id="loadingFill"></div></div>
     <div id="loadingText">INITIALIZING ENGINE...</div>
   </div>
 
-  <!-- HUD (shown during gameplay) -->
   <div id="hud">
-    <!-- Health -->
     <div id="healthBar">
-      <div id="healthLabel">■ HEALTH</div>
-      <div id="healthTrack"><div id="healthFill"></div></div>
+      <div class="hud-label">■ HEALTH</div>
+      <div class="hud-track"><div id="healthFill"></div></div>
+    </div>
+    <div id="staminaBar">
+      <div class="hud-label">◈ STAMINA</div>
+      <div class="hud-track"><div id="staminaFill"></div></div>
     </div>
 
-    <!-- Timer -->
     <div id="timerBox">
-      <div id="timerLabel">TIME REMAINING</div>
+      <div class="timer-label">TIME REMAINING</div>
       <div id="timer">05:00</div>
     </div>
 
-    <!-- Stealth -->
-    <div id="stealthBox">
-      <div id="stealthLabel">DETECTION ■</div>
-      <div id="stealthTrack"><div id="stealthFill"></div></div>
+    <div id="detectionBox">
+      <div class="hud-label" style="text-align:right">DETECTION ■</div>
+      <div class="hud-track"><div id="detectionFill"></div></div>
     </div>
 
-    <!-- Alert Message -->
+    <div id="soundToggle">🔊 SOUND</div>
+    <div id="objectivesPanel"><div id="objTitle">◈ OBJECTIVES</div><div id="objList"></div></div>
     <div id="alertMsg"></div>
-
-    <!-- Crosshair -->
+    <div id="interactPrompt">[E] INTERACT</div>
     <div id="crosshair"></div>
 
-    <!-- Level Info -->
     <div id="levelInfo">
-      <div id="levelName">DEPARTMENT SECTOR</div>
+      <div id="levelName">SECTOR</div>
       <div id="attendanceDisplay">ATTENDANCE: --</div>
     </div>
+    <div id="controlsHint">WASD · MOVE<br>SHIFT · SPRINT<br>SPACE · JUMP<br>C · CROUCH<br>E · INTERACT<br>ESC · PAUSE</div>
 
-    <!-- Controls -->
-    <div id="controlsHint">
-      WASD · MOVE<br>
-      SHIFT · SPRINT<br>
-      SPACE · JUMP<br>
-      C · CROUCH<br>
-      E · INTERACT<br>
-      ESC · PAUSE
-    </div>
-
-    <!-- Minimap -->
     <div id="minimap">
-      <canvas id="minimapCanvas" width="140" height="140"></canvas>
+      <canvas id="minimapCanvas" width="130" height="130"></canvas>
       <div id="minimapLabel">MAP</div>
     </div>
   </div>
 
-  <!-- Damage Flash Overlay -->
   <div id="damageFlash"></div>
-
-  <!-- Win / Lose screens (injected by gameManager.js) -->
-  <div id="winScreen" class="screen"></div>
+  <div id="winScreen"  class="screen"></div>
   <div id="loseScreen" class="screen"></div>
-
-  <!-- Start Screen Mount Point (injected by startScreen.js) -->
   <div id="startScreenMount"></div>
 
-  <!-- Three.js from CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-  <!-- Game Entry Point -->
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
+<script>
+// Inject map screen styles + HTML after DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+  // Add map button to controls hint
+  const hint = document.getElementById('controlsHint');
+  if(hint) hint.innerHTML += '<br>M · MAP';
+
+  // Create map overlay
+  const mapOverlay = document.createElement('div');
+  mapOverlay.id = 'mapOverlay';
+  mapOverlay.style.cssText = `
+    display:none; position:fixed; inset:0; z-index:90;
+    background:rgba(0,0,0,0.92); font-family:'Courier New',monospace;
+    align-items:center; justify-content:center; flex-direction:column;
+    pointer-events:all;
+  `;
+  mapOverlay.innerHTML = `
+    <div style="color:#00ffe7;font-size:11px;letter-spacing:6px;margin-bottom:16px;">◈ SECTOR MAP ◈</div>
+    <canvas id="fullMapCanvas" width="600" height="600" style="border:1px solid rgba(0,255,231,0.25);border-radius:3px;"></canvas>
+    <div style="color:#7a7a9a;font-size:9px;letter-spacing:3px;margin-top:12px;">PRESS M TO CLOSE</div>
+  `;
+  document.body.appendChild(mapOverlay);
+
+  // Toggle map with M key
+  window.addEventListener('keydown', e => {
+    if (e.code === 'KeyM' && window.GAME?.gameManager?.isPlaying) {
+      const visible = mapOverlay.style.display === 'flex';
+      mapOverlay.style.display = visible ? 'none' : 'flex';
+      if (!visible) drawFullMap();
+    }
+  });
+
+  function drawFullMap() {
+    const canvas = document.getElementById('fullMapCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = 600, H = 600;
+    const levelId = window.GAME?.gameManager?.currentLevelId;
+    ctx.clearRect(0, 0, W, H);
+
+    // Dark background
+    ctx.fillStyle = '#05080f'; ctx.fillRect(0, 0, W, H);
+    // Grid
+    ctx.strokeStyle = 'rgba(0,255,231,0.05)'; ctx.lineWidth = 1;
+    for(let i=0;i<W;i+=30){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+    for(let i=0;i<H;i+=30){ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke(); }
+
+    if (levelId === 'level1') drawLevel1Map(ctx, W, H);
+    else if (levelId === 'level2') drawPalottiMap(ctx, W, H);
+    else if (levelId === 'level3') drawWarzoneMap(ctx, W, H);
+    else if (levelId === 'level4') drawHorrorMap(ctx, W, H);
+
+    // Player dot
+    const pc = window.GAME?.playerController;
+    if (pc) {
+      const scale = levelId === 'level2' ? 4 : 4;
+      const cx2 = W/2 + pc.position.x * scale;
+      const cy2 = H/2 + pc.position.z * scale;
+      ctx.fillStyle = '#00ffe7'; ctx.shadowColor='#00ffe7'; ctx.shadowBlur=12;
+      ctx.beginPath(); ctx.arc(cx2, cy2, 7, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='#fff'; ctx.font='9px Courier New'; ctx.textAlign='center';
+      ctx.fillText('YOU', cx2, cy2-12);
+    }
+  }
+
+  function label(ctx, x, y, text, color='#00ffe7', size=10) {
+    ctx.fillStyle = color; ctx.font = `bold ${size}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.fillText(text, x, y);
+    ctx.shadowBlur = 0;
+  }
+
+  function drawLevel1Map(ctx, W, H) {
+    const s=4; const cx=W/2, cy=H/2;
+    // Corridor
+    ctx.fillStyle='rgba(40,50,100,0.6)';
+    ctx.fillRect(cx-13*s, cy-40*s, 26*s, 80*s);
+    // Classroom doors
+    ctx.fillStyle='rgba(60,80,150,0.8)';
+    [[-14,-14],[-14,0],[-14,14],[14,-10],[14,10]].forEach(([dx,dz])=>
+      ctx.fillRect(cx+dx*s-8,cy+dz*s-8,16,20));
+    // Keys
+    const level = window.GAME?.gameManager?.currentLevel;
+    ctx.fillStyle='#d4af37'; ctx.shadowColor='#d4af37'; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.arc(cx-9*s, cy-4*s, 7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+9*s, cy-24*s, 7, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    label(ctx,cx-9*s,cy-4*s-12,'KEY 1','#d4af37',8);
+    label(ctx,cx+9*s,cy-24*s-12,'KEY 2','#d4af37',8);
+    // Exit
+    ctx.fillStyle='#00ff44'; ctx.shadowColor='#00ff44'; ctx.shadowBlur=15;
+    ctx.fillRect(cx-16,cy-35*s,32,16); ctx.shadowBlur=0;
+    label(ctx,cx,cy-35*s-10,'EXIT','#00ff44',9);
+    // Spawn
+    label(ctx,cx,cy+35*s+18,'SPAWN','#aaaaaa',8);
+    // HOD
+    ctx.fillStyle='#ff4444'; ctx.shadowColor='#ff4444'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(cx, cy-10*s, 8, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; label(ctx,cx,cy-10*s-14,'HOD','#ff4444',8);
+    // Title
+    label(ctx,W/2,22,'DEPARTMENT SECTOR — LEVEL 1','#00ffe7',12);
+    // Legend
+    drawLegend(ctx,W,H,[['#d4af37','KEY'],['#00ff44','EXIT'],['#ff4444','ENEMY']]);
+  }
+
+  function drawPalottiMap(ctx, W, H) {
+    const s=3.8; const cx=W/2, cy=H/2;
+    // Boundary
+    ctx.strokeStyle='rgba(200,180,150,0.5)'; ctx.lineWidth=3;
+    ctx.strokeRect(cx-68*s/1.5,cy-65*s/1.5,136*s/1.5,130*s/1.5);
+    // Grass
+    ctx.fillStyle='rgba(30,80,30,0.25)';
+    ctx.fillRect(cx-68*s/1.5,cy-65*s/1.5,136*s/1.5,130*s/1.5);
+    // Courtyard
+    ctx.fillStyle='rgba(120,110,90,0.4)';
+    ctx.fillRect(cx-15*s/1.5,cy-20*s/1.5,30*s/1.5,40*s/1.5);
+    // Paths
+    ctx.fillStyle='rgba(160,150,130,0.3)';
+    ctx.fillRect(cx-4,cy-65*s/1.5,8,130*s/1.5);
+    ctx.fillRect(cx-68*s/1.5,cy-4,136*s/1.5,8);
+    // Block A
+    bldg(ctx,cx-24*s/1.5,cy-5*s/1.5,36*s/1.5,18*s/1.5,'#5a88cc','BLOCK A');
+    // Block B
+    bldg(ctx,cx+18*s/1.5,cy-5*s/1.5,28*s/1.5,16*s/1.5,'#4a8a4a','BLOCK B');
+    // Library
+    bldg(ctx,cx-28*s/1.5,cy+20*s/1.5,22*s/1.5,14*s/1.5,'#cc8833','LIBRARY');
+    // Canteen
+    bldg(ctx,cx+20*s/1.5,cy+22*s/1.5,20*s/1.5,12*s/1.5,'#cc5533','CANTEEN');
+    // Chapel
+    bldg(ctx,cx-52*s/1.5,cy,12*s/1.5,18*s/1.5,'#ffffff','CHAPEL');
+    // Main Gate
+    ctx.fillStyle='rgba(0,255,68,0.7)'; ctx.shadowColor='#00ff44'; ctx.shadowBlur=12;
+    ctx.fillRect(cx-12,cy-60*s/1.5,24,12); ctx.shadowBlur=0;
+    label(ctx,cx,cy-60*s/1.5-10,'MAIN GATE','#00ff44',9);
+    // ID Card location
+    ctx.fillStyle='#4488ff'; ctx.shadowColor='#4488ff'; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.arc(cx-28*s/1.5,cy+28*s/1.5,8,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; label(ctx,cx-28*s/1.5,cy+28*s/1.5-14,'ID CARD','#4488ff',8);
+    // Guards
+    ctx.fillStyle='#ff4444'; ctx.shadowColor='#ff4444'; ctx.shadowBlur=6;
+    [[-20,5],[20,15],[0,-45]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,5,0,Math.PI*2); ctx.fill();
+    }); ctx.shadowBlur=0;
+    // CCTV markers
+    ctx.fillStyle='#ff8800';
+    [[-24,6],[28,6],[-28,36],[0,-44],[30,30]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,4,0,Math.PI*2); ctx.fill();
+    });
+    // Spawn
+    label(ctx,cx,cy+55*s/1.5+16,'▲ YOU SPAWN HERE','#aaaaaa',8);
+    label(ctx,W/2,22,'PALLOTTI COLLEGE CAMPUS — LEVEL 2','#f39c12',12);
+    drawLegend(ctx,W,H,[['#cc8833','LIBRARY (ID CARD)'],['#00ff44','EXIT (MAIN GATE)'],['#ff4444','GUARD'],['#ff8800','CCTV'],['#4488ff','OBJECTIVE']]);
+  }
+
+  function drawWarzoneMap(ctx, W, H) {
+    const s=3.5; const cx=W/2, cy=H/2;
+    ctx.fillStyle='rgba(25,20,12,0.6)'; ctx.fillRect(cx-75*s/1.5,cy-75*s/1.5,150*s/1.5,150*s/1.5);
+    // Roads
+    ctx.fillStyle='rgba(40,38,28,0.7)';
+    ctx.fillRect(cx-4,cy-75*s/1.5,8,150*s/1.5);
+    ctx.fillRect(cx-75*s/1.5,cy-4,150*s/1.5,8);
+    // Buildings
+    const rubbleC='rgba(70,60,50,0.7)';
+    [[-35,10,18,14],[-30,-20,14,12],[-10,-45,12,10],[35,10,16,12],[35,-25,18,15],[15,-45,10,10]].forEach(([bx,bz,w,d])=>{
+      ctx.fillStyle=rubbleC;
+      ctx.fillRect(cx+(bx-w/2)*s/1.5,cy+(bz-d/2)*s/1.5,w*s/1.5,d*s/1.5);
+    });
+    // Craters
+    ctx.strokeStyle='rgba(100,60,20,0.6)'; ctx.lineWidth=2;
+    [[5,10],[-20,-25],[30,5]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,4*s/1.5,0,Math.PI*2); ctx.stroke();
+    });
+    // Fires
+    ctx.fillStyle='rgba(255,100,0,0.8)';
+    [[-22,2],[22,-18],[-42,-10],[-28,8],[28,-22]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,4,0,Math.PI*2); ctx.fill();
+    });
+    // Helipad (extraction)
+    ctx.fillStyle='rgba(0,255,68,0.9)'; ctx.shadowColor='#00ff44'; ctx.shadowBlur=16;
+    ctx.beginPath(); ctx.arc(cx,cy-60*s/1.5,12,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    label(ctx,cx,cy-60*s/1.5-18,'🚁 HELIPAD (EXTRACTION)','#00ff44',9);
+    // Drones
+    ctx.fillStyle='#ff4444'; ctx.shadowColor='#ff4444'; ctx.shadowBlur=8;
+    [[-20,-10],[20,10],[0,-35]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,6,0,Math.PI*2); ctx.fill();
+    }); ctx.shadowBlur=0;
+    // Searchlights
+    ctx.fillStyle='#ffff44';
+    [[-55,-20],[55,-20]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,6,0,Math.PI*2); ctx.fill();
+    });
+    // Spawn
+    label(ctx,cx,cy+55*s/1.5+16,'▲ SPAWN','#aaaaaa',8);
+    label(ctx,W/2,22,'URBAN WARZONE — LEVEL 3','#e74c3c',12);
+    drawLegend(ctx,W,H,[['#00ff44','HELIPAD (ESCAPE)'],['#ff4444','DRONE'],['#ffff44','SEARCHLIGHT'],['rgba(255,100,0,0.9)','FIRE'],['rgba(70,60,50,0.9)','RUINS']]);
+  }
+
+  function drawHorrorMap(ctx, W, H) {
+    const s=3.8; const cx=W/2, cy=H/2;
+    ctx.fillStyle='rgba(5,3,12,0.8)'; ctx.fillRect(cx-65*s/1.5,cy-65*s/1.5,130*s/1.5,130*s/1.5);
+    // Cliffs/shores
+    ctx.strokeStyle='rgba(40,30,60,0.6)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(cx,cy,60*s/1.5,0,Math.PI*2); ctx.stroke();
+    // Ruins
+    [[15,10],[-20,15],[-10,-20],[20,-15],[-25,-10]].forEach(([x,z])=>{
+      ctx.fillStyle='rgba(40,30,55,0.7)';
+      ctx.fillRect(cx+(x-4)*s/1.5,cy+(z-4)*s/1.5,8*s/1.5,8*s/1.5);
+    });
+    // Altar (key location)
+    ctx.fillStyle='rgba(100,0,150,0.8)'; ctx.shadowColor='#aa00ff'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.arc(cx,cy+10*s/1.5,8,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; label(ctx,cx,cy+10*s/1.5-14,'⬟ ALTAR (KEY)','#aa00ff',9);
+    // Lighthouse
+    ctx.fillStyle='#ffffff'; ctx.shadowColor='#ffffff'; ctx.shadowBlur=18;
+    ctx.beginPath(); ctx.arc(cx,cy-55*s/1.5,10,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; label(ctx,cx,cy-55*s/1.5-16,'🔦 LIGHTHOUSE (ESCAPE)','#ffffff',9);
+    // Creatures
+    ctx.fillStyle='#cc00ff'; ctx.shadowColor='#aa00ff'; ctx.shadowBlur=8;
+    [[25,25],[-25,25],[15,-35],[-15,-35],[0,0]].forEach(([x,z])=>{
+      ctx.beginPath(); ctx.arc(cx+x*s/1.5,cy+z*s/1.5,5,0,Math.PI*2); ctx.fill();
+    }); ctx.shadowBlur=0;
+    // Spawn
+    label(ctx,cx,cy+50*s/1.5+16,'▲ SPAWN','#aaaaaa',8);
+    label(ctx,W/2,22,'DARK HORROR ISLAND — LEVEL 4','#9b59b6',12);
+    drawLegend(ctx,W,H,[['#aa00ff','ALTAR (ANCIENT KEY)'],['#ffffff','LIGHTHOUSE (ESCAPE)'],['#cc00ff','SHADOW CREATURE']]);
+  }
+
+  function bldg(ctx,x,y,w,h,color,name){
+    ctx.fillStyle=color.replace('#','rgba(').replace(')',',0.45)') || 'rgba(80,100,160,0.45)';
+    try{ const hex=color.substring(1); const r=parseInt(hex.substring(0,2),16); const g2=parseInt(hex.substring(2,4),16); const b=parseInt(hex.substring(4,6),16); ctx.fillStyle=`rgba(${r},${g2},${b},0.45)`; }catch(e){}
+    ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle=color; ctx.font='bold 9px Courier New'; ctx.textAlign='center';
+    ctx.fillText(name,x+w/2,y+h/2+3);
+  }
+
+  function drawLegend(ctx,W,H,items){
+    const lx=12, ly=H-items.length*20-10;
+    items.forEach((item,i)=>{
+      const [color,text]=item;
+      ctx.fillStyle=color; ctx.beginPath(); ctx.arc(lx+6,ly+i*20,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(200,200,200,0.7)'; ctx.font='9px Courier New'; ctx.textAlign='left';
+      ctx.fillText(text,lx+16,ly+i*20+4);
+    });
+  }
+});
+</script>

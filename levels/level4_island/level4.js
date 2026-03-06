@@ -25,6 +25,11 @@ export class Level4 {
     this.spawnPoint = { x: 0, y: 0.9, z: 50 };
     this.bounds     = 65;
 
+    this.objectives = [
+      { id:'find_key',     text:'Find the Ancient Key (near the altar)',     done:false, active:true  },
+      { id:'lighthouse',   text:'Reach the LIGHTHOUSE beacon to escape',     done:false, active:false },
+    ];
+
     this._entities        = [];
     this._jumpScareCooldown = 0;
     this._jumpScareActive   = false;
@@ -590,6 +595,7 @@ export class Level4 {
     const d = pc.position.distanceTo(this._lighthousePos);
     if (d < 5) {
       if (this._hasBoatKey) {
+        gm.completeObjective('lighthouse');
         gm.triggerWin();
       } else {
         gm.showAlert('⚠ NEED THE ANCIENT KEY', 1200);
@@ -604,7 +610,9 @@ export class Level4 {
       if (d < 2.5) {
         this._hasBoatKey = true;
         this.scene.remove(this._boatKey);
-        gm?.showAlert('🗝 ANCIENT KEY FOUND – REACH THE LIGHTHOUSE!', 3000);
+        gm?.completeObjective('find_key');
+        gm?.setActiveObjective('lighthouse');
+        gm?.showAlert('🗝 ANCIENT KEY FOUND — Reach the LIGHTHOUSE!', 3000);
         return;
       }
     }

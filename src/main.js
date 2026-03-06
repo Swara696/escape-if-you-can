@@ -1,29 +1,24 @@
 /**
- * main.js
- * ─────────────────────────────────────────────────────────────
- * Entry point for "Escape If You Can".
- * Initialises the Three.js renderer, wires together all modules,
- * and starts the render / game loop.
- * ─────────────────────────────────────────────────────────────
+ * main.js  –  Entry point
  */
+import { StartScreen }      from '../ui/startScreen.js';
+import { AttendanceSystem } from './attendanceSystem.js';
+import { GameManager }      from './gameManager.js';
+import { PlayerController } from './playerController.js';
+import { LevelLoader }      from '../ui/levelLoader.js';
+import { SoundSystem }      from './soundSystem.js';
 
-import { StartScreen }        from '../ui/startScreen.js';
-import { AttendanceSystem }   from './attendanceSystem.js';
-import { GameManager }        from './gameManager.js';
-import { PlayerController }   from './playerController.js';
-import { LevelLoader }        from '../ui/levelLoader.js';
-
-// ─── Simulated loading progress ───────────────────────────────
 function fakeLoadProgress(onDone) {
   const fill  = document.getElementById('loadingFill');
   const label = document.getElementById('loadingText');
   const steps = [
-    [10,  'LOADING THREE.JS ENGINE...'],
-    [30,  'BUILDING SCENE GRAPH...'],
-    [55,  'COMPILING SHADERS...'],
-    [75,  'LOADING LEVEL ASSETS...'],
-    [90,  'INITIALISING AI SYSTEMS...'],
-    [100, 'READY'],
+    [12,  'LOADING THREE.JS ENGINE...'],
+    [28,  'BUILDING SCENE GRAPH...'],
+    [48,  'COMPILING SHADERS...'],
+    [65,  'LOADING LEVEL GEOMETRY...'],
+    [80,  'INITIALISING AI SYSTEMS...'],
+    [92,  'GENERATING AUDIO ENGINE...'],
+    [100, 'READY — ENTER YOUR FATE'],
   ];
   let i = 0;
   const tick = () => {
@@ -31,94 +26,65 @@ function fakeLoadProgress(onDone) {
     const [pct, msg] = steps[i++];
     fill.style.width  = pct + '%';
     label.textContent = msg;
-    setTimeout(tick, 300 + Math.random() * 200);
+    setTimeout(tick, 280 + Math.random() * 180);
   };
   tick();
 }
 
-// ─── Bootstrap ────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-
   fakeLoadProgress(() => {
-    // Hide loading screen
     const loadingScreen = document.getElementById('loadingScreen');
     loadingScreen.style.transition = 'opacity 0.8s';
     loadingScreen.style.opacity    = '0';
     setTimeout(() => loadingScreen.style.display = 'none', 800);
 
-    // ── Create Three.js Renderer ──────────────────────────────
     const canvas   = document.getElementById('gameCanvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
-    renderer.toneMapping       = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-    renderer.outputEncoding    = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled      = true;
+    renderer.shadowMap.type         = THREE.PCFSoftShadowMap;
+    renderer.toneMapping            = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure    = 1.3;
+    renderer.outputEncoding         = THREE.sRGBEncoding;
 
-    // ── Main Scene & Camera ───────────────────────────────────
     const scene  = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
-      70, window.innerWidth / window.innerHeight, 0.1, 2000
-    );
+    const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 2000);
+    const clock  = new THREE.Clock();
 
-    // ── Clock for delta-time ──────────────────────────────────
-    const clock = new THREE.Clock();
-
-    // ── Module Instances ──────────────────────────────────────
+    const soundSystem      = new SoundSystem();
     const attendanceSystem = new AttendanceSystem();
     const levelLoader      = new LevelLoader(scene, camera, renderer);
     const gameManager      = new GameManager(scene, camera, renderer, levelLoader);
     const playerController = new PlayerController(camera, scene);
 
-    // Expose globally so modules can cross-communicate
-    window.GAME = {
-      renderer, scene, camera, clock,
-      gameManager, playerController, levelLoader, attendanceSystem,
-    };
+    window.GAME = { renderer, scene, camera, clock, gameManager, playerController, levelLoader, attendanceSystem, soundSystem };
 
-    // ── Handle Resize ─────────────────────────────────────────
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // ── Show Start Screen ─────────────────────────────────────
     const startScreen = new StartScreen((attendance) => {
-      // Determine level from attendance
       const levelId = attendanceSystem.getLevelId(attendance);
-
-      // Update HUD attendance display
-      document.getElementById('attendanceDisplay').textContent =
-        `ATTENDANCE: ${attendance}%`;
-
-      // Load the level
+      document.getElementById('attendanceDisplay').textContent = `ATTENDANCE: ${attendance}%`;
       gameManager.startGame(levelId, attendance);
     });
-
     startScreen.show();
 
-    // ── Main Render Loop ──────────────────────────────────────
     let animId;
     function gameLoop() {
       animId = requestAnimationFrame(gameLoop);
-      const delta = clock.getDelta();
-
-      // Update active systems
+      const delta = Math.min(clock.getDelta(), 0.05); // cap delta to avoid spiral
       if (gameManager.isPlaying) {
         playerController.update(delta);
         gameManager.update(delta);
       }
-
       renderer.render(scene, camera);
     }
-
     gameLoop();
-
-    // Expose loop control
     window.GAME.stopLoop  = () => cancelAnimationFrame(animId);
-    window.GAME.startLoop = () => gameLoop();
+    window.GAME.startLoop = gameLoop;
   });
 });
